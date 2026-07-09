@@ -1,0 +1,22 @@
+# Secrets, never commit these
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS and editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local data and scratch
+*.log
+.streamlit/cache/
+New Rich Text Format.rtf
+~$*.rtf
