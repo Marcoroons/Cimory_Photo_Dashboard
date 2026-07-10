@@ -24,7 +24,7 @@ st.subheader("1. Choose a source")
 src_tab, paste_tab = st.tabs(["Upload file", "Paste table"])
 
 with src_tab:
-    uploaded = st.file_uploader("CSV or Excel", type=["csv", "xlsx", "xls"])
+    uploaded = st.file_uploader("CSV or Excel (.csv, .xlsx)", type=["csv", "xlsx"])
     if uploaded is not None:
         try:
             df = imports.read_upload(uploaded)
@@ -47,6 +47,13 @@ with paste_tab:
 
 df = st.session_state.get("import_df")
 if df is None:
+    st.stop()
+
+if len(df) > imports.MAX_IMPORT_ROWS:
+    st.error(
+        f"This file has {len(df):,} rows, above the {imports.MAX_IMPORT_ROWS:,} "
+        "row limit. Please split it into smaller files."
+    )
     st.stop()
 
 # ---------------------------------------------------------------------------
@@ -74,32 +81,10 @@ if templates:
         template_map = next(t["mapping"] for t in templates if t["name"] == chosen)
 
 
-def _auto(field):
-    """Best guess source column for a canonical field."""
-    if field in template_map and template_map[field] in source_cols:
-        return template_map[field]
-    norm = {c.lower().replace(" ", "").replace("_", ""): c for c in source_cols}
-    key = field.lower().replace("_", "")
-    aliases = {
-        "mcm_id": ["mcm", "mcmid", "agent", "agentid"],
-        "submission_date": ["date", "submissiondate", "tanggal"],
-        "photo_url": ["url", "photourl", "photo", "image", "imageurl", "link"],
-        "region": ["region", "area", "wilayah"],
-        "center_name": ["center", "centre", "centername", "booth", "namacenter"],
-        "captured_at": ["capturedat", "timestamp", "takenat", "waktu"],
-        "category": ["category", "kategori", "type"],
-        "photo_ref": ["ref", "photoref", "filename", "id"],
-        "latitude": ["lat", "latitude"],
-        "longitude": ["lon", "lng", "long", "longitude"],
-        "gps_distance": ["gpsdistance", "distance", "jarak"],
-    }
-    if key in norm:
-        return norm[key]
-    for alias in aliases.get(field, []):
-        if alias in norm:
-            return norm[alias]
-    return None
-
+# Auto-detect the mapping (handles Indonesian headers), then let a saved
+# template override, then let the user adjust.
+auto = imports.guess_mapping(source_cols)
+st.caption("Columns are auto-detected. Adjust any that look wrong.")
 
 NOT_PRESENT = "(not present)"
 mapping = {}
@@ -107,7 +92,7 @@ cols = st.columns(2)
 for idx, (field, kind, desc) in enumerate(imports.CANONICAL_FIELDS):
     col = cols[idx % 2]
     options = [NOT_PRESENT] + source_cols
-    guess = _auto(field)
+    guess = template_map.get(field) if template_map.get(field) in source_cols else auto.get(field)
     default_idx = options.index(guess) if guess in options else 0
     label = f"{field}  ·  {kind}"
     picked = col.selectbox(label, options=options, index=default_idx,
@@ -115,7 +100,10 @@ for idx, (field, kind, desc) in enumerate(imports.CANONICAL_FIELDS):
     if picked != NOT_PRESENT:
         mapping[field] = picked
 
-keep_extras = st.checkbox("Keep unmapped columns in metadata", value=False)
+opt1, opt2 = st.columns(2)
+keep_extras = opt1.checkbox("Keep unmapped columns in metadata", value=True)
+dayfirst = opt2.checkbox("Dates are day first (DD/MM/YYYY)", value=True,
+                        help="Indonesian source files use day first, for example 15/06/2026.")
 
 missing = [f for f in imports.REQUIRED_FIELDS if f not in mapping]
 if missing:
@@ -159,6 +147,7 @@ if st.button("Run import", disabled=not can_run, type="primary"):
             result = imports.run_import(
                 project_id, mapping, df, raw,
                 st.session_state.get("import_name"), config, keep_extras, user.id,
+                dayfirst=dayfirst,
             )
             st.success("Import complete.")
             c1, c2, c3, c4 = st.columns(4)

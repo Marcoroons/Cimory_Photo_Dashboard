@@ -57,8 +57,10 @@ added. Nothing is overwritten and nothing is double counted.
 ## Reading the badges
 
 - **No GPS** — the row had no latitude or longitude.
-- **GPS far** — the photo location is beyond the project distance threshold,
-  five kilometres by default.
+- **GPS far** — the order photo was taken more than the threshold distance
+  (five kilometres by default) from the customer location. Where the file has
+  both order and customer coordinates the tool measures between them, otherwise
+  it uses a per-MCM reference point from project settings if one is set.
 - **over daily limit** — that MCM submitted more than the daily limit on that
   date, two by default.
 - **input Nx** — the purple badge showing how many photos that MCM submitted on

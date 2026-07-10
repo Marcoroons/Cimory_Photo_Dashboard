@@ -11,6 +11,7 @@ import streamlit as st
 
 from lib.ui import page_context, summary_cards, filter_bar, photo_card
 from lib import db
+from lib.safety import sanitize_csv_value
 
 user, project, role, teams = page_context()
 project_id = project["id"]
@@ -133,7 +134,13 @@ def _export_df(rows):
             "note": r.get("note"),
             "reviewer": profiles.get(r.get("reviewer_id")) if r.get("reviewer_id") else None,
         })
-    return pd.DataFrame(out)
+    frame = pd.DataFrame(out)
+    # Neutralise spreadsheet formula injection before the CSV can be reopened
+    # in Excel. Numbers, including negative latitudes, are left untouched.
+    for c in frame.columns:
+        if frame[c].dtype == object:
+            frame[c] = frame[c].map(sanitize_csv_value)
+    return frame
 
 
 csv_buf = io.StringIO()

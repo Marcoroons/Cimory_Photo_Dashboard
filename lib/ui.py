@@ -11,6 +11,7 @@ import streamlit as st
 from lib.supa import get_client
 from lib import db
 from lib import notify
+from lib.safety import is_safe_url, escape_html
 
 
 BADGE_COLORS = {
@@ -24,10 +25,12 @@ BADGE_COLORS = {
 
 
 def badge(text: str, color: str) -> str:
+    # text may include a reviewer display name, so escape it before it enters
+    # markup rendered with unsafe_allow_html.
     return (
         f"<span style='background:{color};color:#fff;padding:2px 8px;"
         f"border-radius:10px;font-size:11px;margin-right:4px;"
-        f"white-space:nowrap;'>{text}</span>"
+        f"white-space:nowrap;'>{escape_html(text)}</span>"
     )
 
 
@@ -303,14 +306,17 @@ def photo_card(submission, review, lock, profiles, can_edit, user, project_id):
 
     with st.container(border=True):
         url = submission.get("photo_url")
-        if url:
+        # Only render as an image if it is a real http(s) URL. This drops the
+        # "(blank)" placeholders and blocks any javascript: or data: value from
+        # being treated as an image source or a link.
+        if is_safe_url(url):
             try:
                 st.image(url, use_container_width=True)
             except Exception:
                 st.caption("Image could not be loaded.")
                 st.write(url)
         else:
-            st.caption("No photo URL.")
+            st.caption("No photo")
 
         meta_bits = []
         if submission.get("submission_date"):
@@ -339,8 +345,8 @@ def photo_card(submission, review, lock, profiles, can_edit, user, project_id):
         if badges:
             st.markdown("".join(badges), unsafe_allow_html=True)
 
-        if url:
-            st.markdown(f"[Open full image]({url})")
+        if is_safe_url(url):
+            st.link_button("Open full image", url)
 
         # Current decision.
         cur_quality = review.get("quality") if review else None

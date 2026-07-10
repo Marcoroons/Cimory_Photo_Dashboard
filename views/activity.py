@@ -10,6 +10,7 @@ except Exception:
 
 from lib.ui import page_context
 from lib import db, notify
+from lib.safety import escape_md
 
 user, project, role, teams = page_context()
 project_id = project["id"]
@@ -43,20 +44,21 @@ if not activity:
     st.info("No activity yet.")
 else:
     for row in activity:
-        who = profiles.get(row.get("actor_id"), "someone")
-        label = ACTION_LABEL.get(row["action"], row["action"])
+        # who and filename are user-influenced, so escape them for markdown.
+        who = escape_md(profiles.get(row.get("actor_id"), "someone"))
+        label = ACTION_LABEL.get(row["action"], escape_md(row["action"]))
         when = str(row.get("created_at", ""))[:19].replace("T", " ")
         details = row.get("details") or {}
         extra = ""
         if row["action"] == "imported":
+            fname = escape_md(details.get("filename", ""))
             extra = (
-                f" — {details.get('inserted', 0)} new, "
-                f"{details.get('skipped', 0)} skipped, "
-                f"{details.get('filename', '')}"
+                f" — {int(details.get('inserted', 0) or 0)} new, "
+                f"{int(details.get('skipped', 0) or 0)} skipped, {fname}"
             )
         elif details.get("quality") or details.get("action"):
             bits = [details.get("quality"), details.get("action")]
-            extra = " — " + ", ".join(b for b in bits if b)
-        st.markdown(f"**{who}** {label}{extra}  \n<small>{when} UTC</small>",
-                   unsafe_allow_html=True)
+            extra = " — " + ", ".join(escape_md(b) for b in bits if b)
+        st.markdown(f"**{who}** {label}{extra}")
+        st.caption(f"{when} UTC")
         st.divider()
