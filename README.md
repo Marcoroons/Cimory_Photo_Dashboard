@@ -35,9 +35,11 @@ supabase/migrations/0001_schema.sql   schema, RLS, triggers, RPCs
 
 1. Create a Supabase project.
 2. Open the SQL editor and run the whole of `supabase/migrations/0001_schema.sql`.
-3. In Authentication settings, make sure email auth is enabled. For a smooth
-   internal-tool flow you may turn off "Confirm email" so users can sign in
-   straight after sign up.
+3. In Authentication settings:
+   - Enable the email provider and allow new sign ups (both on by default).
+   - **Turn off "Confirm email".** This is what makes sign up seamless, the
+     user is signed in straight away with no email step. The shared admin code
+     is the sign-up gate instead.
 4. Copy the project URL and the anon public key from Project Settings, API.
 
 ## Run locally
@@ -72,11 +74,25 @@ python -m streamlit run app.py
 4. Deploy, then sign up as the first user, create a team and a project, and
    import a file.
 
+## Sign up and login flow
+
+- **Sign up** takes an email, a password and the shared **admin code**
+  (`cimory123` by default, override with `ADMIN_SIGNUP_CODE` in secrets). Enter
+  the code once. Everyone who signs up with it lands in the same shared
+  workspace automatically, the first person becomes owner and the rest join as
+  editors.
+- **No email confirmation.** With "Confirm email" turned off in Supabase, sign
+  up drops the user straight onto the dashboard.
+- **Returning users** are kept signed in by a 30-day cookie session, so future
+  visits are seamless with nothing to re-enter.
+
+The admin code gate runs inside the Streamlit server, which holds the anon key,
+so it cannot be bypassed from the browser.
+
 ## First run
 
-Sign up, create a team on the welcome screen (which also creates your first
-project), then open Import to load a file. See the in-app Handbook, or
-`docs/handbook.md`, for the full workflow.
+Sign up with the admin code, then open Import to load a file. See the in-app
+Handbook, or `docs/handbook.md`, for the full workflow.
 
 ## Deferred by design
 

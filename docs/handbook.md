@@ -16,15 +16,19 @@ the results.
 - **admin** — everything an editor can do, plus manage team members and codes.
 - **owner** — full control, including deleting the team and its projects.
 
-## Joining a team with an invite code
+## Signing up and signing in
 
-An admin creates a code on the Team page and shares it with you. You sign in and
-redeem the code on the Redeem tab of the login screen, or on the welcome screen
-if you are brand new. Redeeming the code adds you to the team with the role the
-admin chose.
+To create an account you enter your email, a password, and the shared admin
+code. You enter the admin code once, at sign up, and never again. Everyone who
+signs up lands in the same shared workspace, so there is nothing to set up. The
+first person to sign up becomes the owner, everyone after joins as an editor.
 
-Admins create codes on the Team page. Pick a role, generate the code, and pass
-it on out of band, for example over chat.
+There is no email confirmation step, so you are taken straight to the dashboard.
+On future visits you stay signed in automatically, there is nothing to re-enter.
+
+Admins can still create per-person invite codes for a specific team on the Team
+page if a more granular arrangement is ever needed, but for day to day use the
+admin code is all anyone needs.
 
 ## Switching projects
 

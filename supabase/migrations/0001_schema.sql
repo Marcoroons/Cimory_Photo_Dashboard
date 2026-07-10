@@ -386,8 +386,47 @@ begin
 end;
 $$;
 
-grant execute on function public.create_team(text)   to authenticated;
-grant execute on function public.redeem_invite(text)  to authenticated;
-grant execute on function public.is_team_member(uuid) to authenticated;
-grant execute on function public.is_team_admin(uuid)  to authenticated;
-grant execute on function public.project_role(uuid)   to authenticated;
+-- Seamless onboarding. Everyone who signs up with the admin code lands in the
+-- same shared workspace. The first person to sign up creates it and becomes the
+-- owner, everyone after joins as an editor. Security definer so a brand new user
+-- can join a team they cannot yet see under RLS. Returns the project id to open.
+create or replace function public.join_default_workspace()
+returns uuid language plpgsql security definer
+set search_path = public as $$
+declare
+  _team uuid;
+  _project uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  select id into _team from teams order by created_at asc limit 1;
+
+  if _team is null then
+    insert into teams (name, owner_id) values ('Cimory', auth.uid())
+      returning id into _team;
+    insert into team_members (team_id, user_id, role)
+      values (_team, auth.uid(), 'owner')
+      on conflict (team_id, user_id) do nothing;
+    insert into projects (team_id, name, config)
+      values (_team, 'Photo Review', '{"daily_limit": 2, "gps_threshold_km": 5}'::jsonb)
+      returning id into _project;
+  else
+    insert into team_members (team_id, user_id, role)
+      values (_team, auth.uid(), 'editor')
+      on conflict (team_id, user_id) do nothing;
+  end if;
+
+  select id into _project from projects where team_id = _team
+    order by created_at asc limit 1;
+  return _project;
+end;
+$$;
+
+grant execute on function public.create_team(text)             to authenticated;
+grant execute on function public.redeem_invite(text)           to authenticated;
+grant execute on function public.join_default_workspace()      to authenticated;
+grant execute on function public.is_team_member(uuid)          to authenticated;
+grant execute on function public.is_team_admin(uuid)           to authenticated;
+grant execute on function public.project_role(uuid)            to authenticated;

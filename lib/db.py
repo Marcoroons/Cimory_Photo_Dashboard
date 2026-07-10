@@ -95,6 +95,12 @@ def create_team(name: str) -> str:
     return res.data
 
 
+def join_default_workspace() -> str:
+    """Join (or create, if first) the shared workspace. Returns the project id."""
+    client = get_client()
+    return client.rpc("join_default_workspace", {}).execute().data
+
+
 def create_project(team_id: str, name: str, config: dict | None = None) -> dict:
     client = get_client()
     payload = {"team_id": team_id, "name": name, "config": config or {}}

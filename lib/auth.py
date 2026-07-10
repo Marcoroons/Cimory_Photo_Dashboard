@@ -11,7 +11,7 @@ import datetime as dt
 import streamlit as st
 import extra_streamlit_components as stx
 
-from lib.supa import get_client, set_auth_token, supabase_configured
+from lib.supa import get_client, set_auth_token, supabase_configured, admin_signup_code
 from lib import db
 
 ACCESS_COOKIE = "sb_access_token"
@@ -67,8 +67,16 @@ def restore_session():
         return st.session_state["auth_user"]
 
     cm = _cookies()
-    access = cm.get(ACCESS_COOKIE)
-    refresh = cm.get(REFRESH_COOKIE)
+    cookies = cm.get_all() or {}
+    # The cookie component reads asynchronously, so on the very first run of a
+    # fresh page load it can report nothing before it has mounted. Give it one
+    # rerun to hydrate so a returning user is not flashed the login screen.
+    if not cookies and not st.session_state.get("_cookies_checked"):
+        st.session_state["_cookies_checked"] = True
+        st.rerun()
+
+    access = cookies.get(ACCESS_COOKIE)
+    refresh = cookies.get(REFRESH_COOKIE)
     if access and refresh:
         try:
             res = client.auth.set_session(access, refresh)
@@ -97,8 +105,17 @@ def sign_in(email: str, password: str):
     return res.session.user
 
 
-def sign_up(email: str, password: str, display_name: str):
+def sign_up(email: str, password: str, admin_code: str):
+    """Create an account, gated by the shared admin code.
+
+    The check runs inside the Streamlit server, which holds the anon key, so it
+    cannot be bypassed from the browser. Returns (user, has_session). has_session
+    is False only when email confirmation is still switched on in Supabase.
+    """
+    if (admin_code or "").strip() != admin_signup_code():
+        raise RuntimeError("Incorrect admin code.")
     client = get_client()
+    display_name = (email or "").split("@")[0]
     res = client.auth.sign_up(
         {
             "email": email,
@@ -142,7 +159,7 @@ def _render_login():
         )
         st.stop()
 
-    tab_in, tab_up, tab_code = st.tabs(["Sign in", "Sign up", "Redeem invite code"])
+    tab_in, tab_up = st.tabs(["Sign in", "Sign up"])
 
     with tab_in:
         with st.form("sign_in_form"):
@@ -157,41 +174,30 @@ def _render_login():
                 st.error(f"Could not sign in: {exc}")
 
     with tab_up:
+        st.caption(
+            "New here? Enter the admin code once to create your account. You will "
+            "not need it again."
+        )
         with st.form("sign_up_form"):
-            display_name = st.text_input("Display name")
             email = st.text_input("Email", key="su_email")
             password = st.text_input("Password", type="password", key="su_pw")
+            code = st.text_input("Admin code", type="password", key="su_code")
             submitted = st.form_submit_button("Create account")
         if submitted:
             try:
-                _, has_session = sign_up(email, password, display_name)
+                _, has_session = sign_up(email, password, code)
                 if has_session:
                     st.success("Account created. Loading your dashboard.")
                     st.rerun()
                 else:
-                    st.info(
-                        "Account created. Please confirm your email, then sign "
-                        "in. If email confirmation is disabled in Supabase you "
-                        "can sign in straight away."
+                    st.warning(
+                        "Account created, but Supabase still has email "
+                        "confirmation switched on. Turn off Confirm email in "
+                        "Supabase Authentication settings for a seamless flow, "
+                        "then sign in."
                     )
             except Exception as exc:
                 st.error(f"Could not create account: {exc}")
-
-    with tab_code:
-        st.caption("Sign in and join a team in one step using an invite code.")
-        with st.form("redeem_form"):
-            email = st.text_input("Email", key="rc_email")
-            password = st.text_input("Password", type="password", key="rc_pw")
-            code = st.text_input("Invite code")
-            submitted = st.form_submit_button("Sign in and join team")
-        if submitted:
-            try:
-                sign_in(email, password)
-                db.redeem_invite(code)
-                st.success("Joined the team. Loading your dashboard.")
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Could not join: {exc}")
 
 
 def require_auth():

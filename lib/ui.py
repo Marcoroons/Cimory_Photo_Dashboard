@@ -146,6 +146,14 @@ def render_sidebar(user):
 
     teams = teams_with_role(user)
     if not teams:
+        # Seamless onboarding: drop straight into the shared workspace rather
+        # than asking the user to create a team. First user creates it.
+        try:
+            db.join_default_workspace()
+            teams = teams_with_role(user)
+        except Exception:
+            pass
+    if not teams:
         _bootstrap(user, teams)
 
     projects = db.list_projects()
