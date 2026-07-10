@@ -2,14 +2,10 @@
 
 import streamlit as st
 
-st.set_page_config(page_title="Import", page_icon="📥", layout="wide")
-
-from lib.auth import require_auth
-from lib.ui import render_sidebar
+from lib.ui import page_context
 from lib import db, imports
 
-user = require_auth()
-project, role, teams = render_sidebar(user)
+user, project, role, teams = page_context()
 project_id = project["id"]
 
 st.title("Import photos")

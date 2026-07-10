@@ -2,14 +2,10 @@
 
 import streamlit as st
 
-st.set_page_config(page_title="Team", page_icon="👥", layout="wide")
-
-from lib.auth import require_auth
-from lib.ui import render_sidebar
+from lib.ui import page_context
 from lib import db
 
-user = require_auth()
-project, role, teams = render_sidebar(user)
+user, project, role, teams = page_context()
 team_id = project["team_id"]
 team = next((t for t in teams if t["id"] == team_id), None)
 is_admin = role in ("owner", "admin")

@@ -205,6 +205,14 @@ def render_sidebar(user):
     return project, role, teams
 
 
+def page_context():
+    """Return (user, project, role, teams) set by the router for a view script."""
+    ctx = st.session_state.get("_page_ctx")
+    if not ctx:
+        st.stop()
+    return ctx
+
+
 # ---------------------------------------------------------------------------
 # Summary cards that double as filters
 # ---------------------------------------------------------------------------

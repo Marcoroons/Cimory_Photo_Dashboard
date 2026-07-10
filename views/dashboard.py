@@ -9,14 +9,10 @@ import io
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Dashboard", page_icon="📷", layout="wide")
-
-from lib.auth import require_auth
-from lib.ui import render_sidebar, summary_cards, filter_bar, photo_card
+from lib.ui import page_context, summary_cards, filter_bar, photo_card
 from lib import db
 
-user = require_auth()
-project, role, teams = render_sidebar(user)
+user, project, role, teams = page_context()
 project_id = project["id"]
 can_edit = role in ("owner", "admin", "editor")
 

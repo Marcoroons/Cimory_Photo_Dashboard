@@ -148,6 +148,19 @@ def sign_out():
 # ---------------------------------------------------------------------------
 
 def _render_login():
+    # The login page stands on its own: no sidebar, content centred in a narrow
+    # column so it reads as a separate page from the dashboard.
+    st.markdown(
+        """<style>
+        [data-testid="stSidebar"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="collapsedControl"] { display: none !important; }
+        [data-testid="stAppViewContainer"] .block-container {
+            max-width: 460px; padding-top: 8vh;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
     st.title("Photo Review dashboard")
     st.caption("Sign in to review field photo submissions per MCM.")
 

@@ -4,13 +4,9 @@ from pathlib import Path
 
 import streamlit as st
 
-st.set_page_config(page_title="Handbook", page_icon="📖", layout="wide")
+from lib.ui import page_context
 
-from lib.auth import require_auth
-from lib.ui import render_sidebar
-
-user = require_auth()
-render_sidebar(user)
+page_context()
 
 st.title("Handbook")
 

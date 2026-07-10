@@ -2,20 +2,16 @@
 
 import streamlit as st
 
-st.set_page_config(page_title="Activity", page_icon="🔔", layout="wide")
-
 try:
     from streamlit_autorefresh import st_autorefresh
     _HAS_AUTOREFRESH = True
 except Exception:
     _HAS_AUTOREFRESH = False
 
-from lib.auth import require_auth
-from lib.ui import render_sidebar
+from lib.ui import page_context
 from lib import db, notify
 
-user = require_auth()
-project, role, teams = render_sidebar(user)
+user, project, role, teams = page_context()
 project_id = project["id"]
 
 st.title("Activity")
