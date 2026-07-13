@@ -21,7 +21,8 @@ project, role, teams = render_sidebar(user)
 st.session_state["_page_ctx"] = (user, project, role, teams)
 
 pages = [
-    st.Page("views/dashboard.py", title="Dashboard", icon=":material/photo_library:", default=True),
+    st.Page("views/overview.py", title="Overview", icon=":material/monitoring:", default=True),
+    st.Page("views/dashboard.py", title="Dashboard", icon=":material/photo_library:"),
     st.Page("views/import_data.py", title="Import", icon=":material/upload:"),
     st.Page("views/activity.py", title="Activity", icon=":material/notifications:"),
     st.Page("views/team.py", title="Team", icon=":material/group:"),
