@@ -12,15 +12,15 @@ from lib import db
 
 user, project, role, teams = page_context()
 project_id = project["id"]
-is_admin = role in ("owner", "admin")
+can_edit = role in ("owner", "admin", "editor")
 
 st.title("Project Settings")
 st.caption(f"Project: {project['name']}")
 
 config = project.get("config") or {}
 
-if not is_admin:
-    st.info("Only team admins and owners can change project settings.")
+if not can_edit:
+    st.info("Only editors, admins and owners can change project settings.")
     st.json(config)
     st.stop()
 

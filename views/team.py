@@ -9,6 +9,7 @@ user, project, role, teams = page_context()
 team_id = project["team_id"]
 team = next((t for t in teams if t["id"] == team_id), None)
 is_admin = role in ("owner", "admin")
+is_editor_plus = role in ("owner", "admin", "editor")
 
 st.title("Team")
 st.caption(f"Team: {team['name'] if team else team_id}")
@@ -16,20 +17,23 @@ st.caption(f"Team: {team['name'] if team else team_id}")
 profiles = db.get_profiles_map()
 
 # ---------------------------------------------------------------------------
-# Members
+# Members. Changing roles and removing members stays with owners and admins.
+# This is the "editors cannot kick anyone out" line, and it also stops an
+# editor from promoting themselves. Editors see the list read only.
 # ---------------------------------------------------------------------------
 
 st.subheader("Members")
 members = db.list_team_members(team_id)
-ROLES = ["viewer", "editor", "admin", "owner"]
+ROLES = ["viewer", "editor", "admin"]
 
 for m in members:
     name = profiles.get(m["user_id"], m["user_id"])
+    is_self = m["user_id"] == user.id
     cols = st.columns([3, 2, 1])
-    cols[0].write(name)
-    if is_admin and m["role"] != "owner" and m["user_id"] != user.id:
+    cols[0].write(name + (" (you)" if is_self else ""))
+    if is_admin and m["role"] != "owner" and not is_self:
         new_role = cols[1].selectbox(
-            "Role", options=ROLES, index=ROLES.index(m["role"]),
+            "Role", options=ROLES, index=ROLES.index(m["role"]) if m["role"] in ROLES else 0,
             key=f"role_{m['user_id']}", label_visibility="collapsed",
         )
         if new_role != m["role"]:
@@ -42,18 +46,19 @@ for m in members:
         cols[1].write(m["role"])
 
 # ---------------------------------------------------------------------------
-# Invitations
+# Invitations. Editors and above can invite, but only admins can grant admin.
 # ---------------------------------------------------------------------------
 
 st.divider()
 st.subheader("Invite codes")
 
-if not is_admin:
-    st.info("Only team admins and owners can create invite codes.")
+if not is_editor_plus:
+    st.info("Only editors, admins and owners can create invite codes.")
 else:
+    invite_roles = ["viewer", "editor", "admin"] if is_admin else ["viewer", "editor"]
     with st.form("invite_form"):
         cols = st.columns([2, 2])
-        inv_role = cols[0].selectbox("Role", options=["viewer", "editor", "admin"])
+        inv_role = cols[0].selectbox("Role", options=invite_roles)
         inv_email = cols[1].text_input("Email (optional, for your records)")
         submitted = st.form_submit_button("Create invite code")
     if submitted:
@@ -79,6 +84,6 @@ else:
 
 st.divider()
 st.caption(
-    "Share a code out of band. The recipient signs in and redeems it on the "
-    "Redeem tab of the login screen, or the bootstrap screen."
+    "Most people just sign up with the shared admin code to join the workspace. "
+    "Invite codes are for adding someone to this specific team with a set role."
 )

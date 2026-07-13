@@ -250,15 +250,15 @@ drop policy if exists team_members_delete on team_members;
 create policy team_members_delete on team_members
   for delete using (is_team_admin(team_id));
 
--- invitations: admins manage. Redeem lookup by code goes through the redeem_invite RPC.
+-- invitations: editors and above manage. Redeem by code goes through the RPC.
 drop policy if exists invitations_select on invitations;
 create policy invitations_select on invitations
-  for select using (is_team_admin(team_id));
+  for select using (is_team_editor(team_id));
 drop policy if exists invitations_write on invitations;
 create policy invitations_write on invitations
-  for all using (is_team_admin(team_id)) with check (is_team_admin(team_id));
+  for all using (is_team_editor(team_id)) with check (is_team_editor(team_id));
 
--- projects: members read, editors and above create, admins update and delete.
+-- projects: members read, editors and above create and edit, admins delete.
 drop policy if exists projects_select on projects;
 create policy projects_select on projects
   for select using (is_team_member(team_id));
@@ -267,7 +267,7 @@ create policy projects_insert on projects
   for insert with check (is_team_editor(team_id));
 drop policy if exists projects_update on projects;
 create policy projects_update on projects
-  for update using (is_team_admin(team_id)) with check (is_team_admin(team_id));
+  for update using (is_team_editor(team_id)) with check (is_team_editor(team_id));
 drop policy if exists projects_delete on projects;
 create policy projects_delete on projects
   for delete using (is_team_admin(team_id));

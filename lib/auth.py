@@ -16,6 +16,7 @@ from lib import db
 
 ACCESS_COOKIE = "sb_access_token"
 REFRESH_COOKIE = "sb_refresh_token"
+REMEMBER_COOKIE = "sb_remember"
 
 
 # ---------------------------------------------------------------------------
@@ -28,19 +29,26 @@ def _cookies():
     return st.session_state.cookie_manager
 
 
-def _persist_tokens(access: str, refresh: str) -> None:
+def _persist_tokens(access: str, refresh: str, remember: bool) -> None:
+    """Store the session in a cookie. When "remember me" is off the cookie is
+    short lived (8 hours, rolling) so the login does not silently persist on the
+    device. When on it lasts 30 days. same_site strict blocks cross-site use."""
     cm = _cookies()
-    expires = dt.datetime.now() + dt.timedelta(days=30)
+    hours = 24 * 30 if remember else 8
+    expires = dt.datetime.now() + dt.timedelta(hours=hours)
     try:
-        cm.set(ACCESS_COOKIE, access, expires_at=expires, key="set_access")
-        cm.set(REFRESH_COOKIE, refresh, expires_at=expires, key="set_refresh")
+        cm.set(ACCESS_COOKIE, access, expires_at=expires, key="set_access", same_site="strict")
+        cm.set(REFRESH_COOKIE, refresh, expires_at=expires, key="set_refresh", same_site="strict")
+        cm.set(REMEMBER_COOKIE, "1" if remember else "0", expires_at=expires,
+               key="set_remember", same_site="strict")
     except Exception:
         pass
 
 
 def _clear_tokens() -> None:
     cm = _cookies()
-    for name, key in ((ACCESS_COOKIE, "del_access"), (REFRESH_COOKIE, "del_refresh")):
+    for name, key in ((ACCESS_COOKIE, "del_access"), (REFRESH_COOKIE, "del_refresh"),
+                      (REMEMBER_COOKIE, "del_remember")):
         try:
             cm.delete(name, key=key)
         except Exception:
@@ -83,7 +91,8 @@ def restore_session():
             if res and res.session:
                 _apply_session(res.session)
                 if res.session.access_token != access:
-                    _persist_tokens(res.session.access_token, res.session.refresh_token)
+                    remember = cookies.get(REMEMBER_COOKIE) == "1"
+                    _persist_tokens(res.session.access_token, res.session.refresh_token, remember)
                 return res.session.user
         except Exception:
             _clear_tokens()
@@ -94,18 +103,18 @@ def restore_session():
 # Sign in, sign up, redeem, sign out
 # ---------------------------------------------------------------------------
 
-def sign_in(email: str, password: str):
+def sign_in(email: str, password: str, remember: bool = False):
     client = get_client()
     res = client.auth.sign_in_with_password({"email": email, "password": password})
     if not res.session:
         raise RuntimeError("Sign in failed, please check your details.")
     _apply_session(res.session)
-    _persist_tokens(res.session.access_token, res.session.refresh_token)
+    _persist_tokens(res.session.access_token, res.session.refresh_token, remember)
     db.ensure_profile(res.session.user)
     return res.session.user
 
 
-def sign_up(email: str, password: str, admin_code: str):
+def sign_up(email: str, password: str, admin_code: str, remember: bool = False):
     """Create an account, gated by the shared admin code.
 
     The check runs inside the Streamlit server, which holds the anon key, so it
@@ -125,7 +134,7 @@ def sign_up(email: str, password: str, admin_code: str):
     )
     if res.session:
         _apply_session(res.session)
-        _persist_tokens(res.session.access_token, res.session.refresh_token)
+        _persist_tokens(res.session.access_token, res.session.refresh_token, remember)
         db.ensure_profile(res.session.user)
         return res.session.user, True
     # Email confirmation is on, no session yet.
@@ -178,13 +187,18 @@ def _render_login():
         with st.form("sign_in_form"):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
+            remember = st.checkbox("Remember me on this device (30 days)", value=False)
             submitted = st.form_submit_button("Sign in")
         if submitted:
             try:
-                sign_in(email, password)
+                sign_in(email, password, remember)
                 st.rerun()
             except Exception as exc:
                 st.error(f"Could not sign in: {exc}")
+        st.caption(
+            "Leave Remember me off on a shared computer. Signing out clears the "
+            "session, and it also expires by itself after a few hours."
+        )
 
     with tab_up:
         st.caption(
@@ -195,10 +209,12 @@ def _render_login():
             email = st.text_input("Email", key="su_email")
             password = st.text_input("Password", type="password", key="su_pw")
             code = st.text_input("Admin code", type="password", key="su_code")
+            remember = st.checkbox("Remember me on this device (30 days)", value=False,
+                                  key="su_remember")
             submitted = st.form_submit_button("Create account")
         if submitted:
             try:
-                _, has_session = sign_up(email, password, code)
+                _, has_session = sign_up(email, password, code, remember)
                 if has_session:
                     st.success("Account created. Loading your dashboard.")
                     st.rerun()
