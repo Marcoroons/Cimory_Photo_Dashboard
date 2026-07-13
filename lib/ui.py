@@ -184,22 +184,22 @@ def render_sidebar(user):
             st.session_state["project_id"] = selected
             st.rerun()
 
-        # New project creator, for team owners and admins. Creates the project in
-        # the chosen team and switches to it.
-        admin_teams = [t for t in teams if t.get("_role") in ("owner", "admin")]
-        if admin_teams:
+        # New project creator, for editors and above. Creates the project in the
+        # chosen team and switches to it.
+        creatable_teams = [t for t in teams if t.get("_role") in ("owner", "admin", "editor")]
+        if creatable_teams:
             with st.popover("＋ New project", use_container_width=True):
                 with st.form("new_project_form"):
                     new_name = st.text_input("Project name")
-                    if len(admin_teams) > 1:
+                    if len(creatable_teams) > 1:
                         team_id = st.selectbox(
                             "Team",
-                            options=[t["id"] for t in admin_teams],
+                            options=[t["id"] for t in creatable_teams],
                             format_func=lambda tid: next(
-                                t["name"] for t in admin_teams if t["id"] == tid),
+                                t["name"] for t in creatable_teams if t["id"] == tid),
                         )
                     else:
-                        team_id = admin_teams[0]["id"]
+                        team_id = creatable_teams[0]["id"]
                     created = st.form_submit_button("Create project")
                 if created:
                     if not new_name.strip():
