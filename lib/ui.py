@@ -477,12 +477,12 @@ def _apply_review(project_id, sid, user, review, profiles, quality=None, action=
             db.clear_lock(sid)
         except Exception:
             pass
-        db.invalidate()
+        db.invalidate_reviews()
         st.rerun()
     else:
         who = "another reviewer"
         if conflict and conflict.get("reviewer_id"):
             who = profiles.get(conflict["reviewer_id"], who)
         st.warning(f"{who} updated this photo first. Reloading so nothing is overwritten.")
-        db.invalidate()
+        db.invalidate_reviews()
         st.rerun()

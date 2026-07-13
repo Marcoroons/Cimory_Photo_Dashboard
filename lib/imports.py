@@ -363,7 +363,7 @@ def run_import(project_id, mapping, df, raw_bytes, filename, config, keep_extras
             "duplicates": flag_summary["duplicates"],
         },
     )
-    db.invalidate()
+    db.invalidate_submissions()
 
     return {
         "total": len(rows),

@@ -17,8 +17,24 @@ from lib.supa import get_client
 # Cache control
 # ---------------------------------------------------------------------------
 
+def invalidate_reviews() -> None:
+    """After a review write. Submissions do not change when a photo is rated,
+    so leave that (large) cache alone and only refresh reviews, the activity
+    feed and locks. This is what keeps rating clicks instant."""
+    get_reviews.clear()
+    get_activity.clear()
+    get_review_locks.clear()
+
+
+def invalidate_submissions() -> None:
+    """After an import, when the submission set itself changes."""
+    get_submissions.clear()
+    get_reviews.clear()
+    get_activity.clear()
+
+
 def invalidate() -> None:
-    """Drop cached reads after any write so the next rerun sees fresh data."""
+    """Full clear. Kept for callers that want everything refreshed."""
     get_submissions.clear()
     get_reviews.clear()
     get_activity.clear()
@@ -50,7 +66,7 @@ def ensure_profile(user) -> None:
         pass
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def get_profiles_map() -> dict:
     """id -> display_name for showing reviewer and actor names."""
     client = get_client()
@@ -236,7 +252,7 @@ def insert_submissions(rows: list) -> int:
     return inserted
 
 
-@st.cache_data(ttl=20, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def get_submissions(project_id: str) -> list:
     """All submissions for a project. Weekly batches stay small enough to load
     whole and filter in the app."""
@@ -278,7 +294,7 @@ def existing_photo_urls(project_id: str) -> set:
 # Reviews
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def get_reviews(project_id: str) -> dict:
     """submission_id -> review row."""
     client = get_client()
@@ -349,7 +365,7 @@ def save_review(project_id, submission_id, reviewer_id, quality, action, note, s
 # Review locks (optional soft lock)
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=10, show_spinner=False)
+@st.cache_data(ttl=45, show_spinner=False)
 def get_review_locks(project_id: str) -> dict:
     client = get_client()
     rows = (
@@ -397,7 +413,7 @@ def log_activity(project_id, actor_id, action, submission_id=None, details=None)
         pass
 
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def get_activity(project_id: str, limit: int = 200) -> list:
     client = get_client()
     return (
