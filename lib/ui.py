@@ -268,8 +268,10 @@ def render_pager(total_pages: int, page_key: str = "dash_page"):
 # ---------------------------------------------------------------------------
 
 def summary_cards(stats: dict):
-    """Render the summary row. Good, Bad, To-delete and Duplicate toggle a
-    filter stored in st.session_state['card_filter']."""
+    """Render the summary metrics and the status breakdown. The status cards
+    (Approved, Poor Quality, Not Rated, Not Uploaded, To Delete, Duplicates)
+    toggle a filter stored in st.session_state['card_filter'] and recompute on
+    every rerun, so they update after each review click."""
     active = st.session_state.get("card_filter")
 
     row1 = st.columns(4)
@@ -278,11 +280,14 @@ def summary_cards(stats: dict):
     row1[2].metric("Over daily limit", stats["over_limit_mcms"])
     row1[3].metric("Assessed", f"{stats['assessed']} / {stats['total']}")
 
-    row2 = st.columns(4)
-    _filter_card(row2[0], "Good", stats["good"], "good", active)
-    _filter_card(row2[1], "Bad", stats["bad"], "bad", active)
-    _filter_card(row2[2], "To delete", stats["to_delete"], "to_delete", active)
-    _filter_card(row2[3], "Duplicates", stats["duplicates"], "duplicate", active)
+    st.markdown("**Status** (click to filter)")
+    row2 = st.columns(6)
+    _filter_card(row2[0], "Approved", stats["approved"], "good", active)
+    _filter_card(row2[1], "Poor Quality", stats["poor"], "bad", active)
+    _filter_card(row2[2], "Not Rated", stats["not_rated"], "not_rated", active)
+    _filter_card(row2[3], "Not Uploaded", stats["not_uploaded"], "not_uploaded", active)
+    _filter_card(row2[4], "To Delete", stats["to_delete"], "to_delete", active)
+    _filter_card(row2[5], "Duplicates", stats["duplicates"], "duplicate", active)
 
     if active:
         st.caption(f"Filtering by: {active}. Click the card again to clear.")

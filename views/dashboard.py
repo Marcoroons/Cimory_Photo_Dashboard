@@ -12,7 +12,7 @@ import streamlit as st
 
 from lib.ui import page_context, summary_cards, filter_bar, photo_card, render_pager
 from lib import db
-from lib.safety import sanitize_csv_value
+from lib.safety import sanitize_csv_value, is_safe_url
 
 user, project, role, teams = page_context()
 project_id = project["id"]
@@ -50,16 +50,29 @@ if not submissions:
 
 
 # ---------------------------------------------------------------------------
-# Summary statistics
+# Summary statistics. Every submission falls into exactly one status:
+# Not Uploaded (no photo link) takes priority; the rest split by quality into
+# Approved / Poor Quality / Not Rated. These recompute each rerun, so they
+# update live after every review click.
 # ---------------------------------------------------------------------------
 
-def _review_for(sid):
-    return reviews.get(sid)
+def _status(s):
+    if not is_safe_url(s.get("photo_url")):
+        return "not_uploaded"
+    q = (reviews.get(s["id"]) or {}).get("quality")
+    if q == "good":
+        return "approved"
+    if q == "bad":
+        return "poor"
+    return "not_rated"
 
-good = sum(1 for r in reviews.values() if r.get("quality") == "good")
-bad = sum(1 for r in reviews.values() if r.get("quality") == "bad")
+
+status_of = {s["id"]: _status(s) for s in submissions}
+approved = sum(1 for v in status_of.values() if v == "approved")
+poor = sum(1 for v in status_of.values() if v == "poor")
+not_rated = sum(1 for v in status_of.values() if v == "not_rated")
+not_uploaded = sum(1 for v in status_of.values() if v == "not_uploaded")
 to_delete = sum(1 for r in reviews.values() if r.get("action") == "delete")
-assessed = sum(1 for r in reviews.values() if r.get("quality"))
 duplicates = sum(1 for s in submissions if s.get("is_duplicate"))
 
 over_limit_mcms = len({
@@ -72,9 +85,11 @@ stats = {
     "mcm_count": len({s.get("mcm_id") for s in submissions if s.get("mcm_id")}),
     "total": len(submissions),
     "over_limit_mcms": over_limit_mcms,
-    "assessed": assessed,
-    "good": good,
-    "bad": bad,
+    "assessed": approved + poor,
+    "approved": approved,
+    "poor": poor,
+    "not_rated": not_rated,
+    "not_uploaded": not_uploaded,
     "to_delete": to_delete,
     "duplicates": duplicates,
 }
@@ -94,15 +109,18 @@ max_date = pd.to_datetime(max(dates)).date() if dates else None
 flt = filter_bar(regions, min_date, max_date)
 
 
+CARD_STATUS = {"good": "approved", "bad": "poor",
+               "not_rated": "not_rated", "not_uploaded": "not_uploaded"}
+
+
 def _passes(s):
     r = reviews.get(s["id"])
-    if flt["card"] == "good" and not (r and r.get("quality") == "good"):
+    card = flt["card"]
+    if card in CARD_STATUS and status_of.get(s["id"]) != CARD_STATUS[card]:
         return False
-    if flt["card"] == "bad" and not (r and r.get("quality") == "bad"):
+    if card == "to_delete" and not (r and r.get("action") == "delete"):
         return False
-    if flt["card"] == "to_delete" and not (r and r.get("action") == "delete"):
-        return False
-    if flt["card"] == "duplicate" and not s.get("is_duplicate"):
+    if card == "duplicate" and not s.get("is_duplicate"):
         return False
     rating = flt.get("rating")
     if rating:
