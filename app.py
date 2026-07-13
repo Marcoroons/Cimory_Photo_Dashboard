@@ -30,4 +30,7 @@ pages = [
     st.Page("views/handbook.py", title="Handbook", icon=":material/menu_book:"),
 ]
 
-st.navigation(pages).run()
+# Page navigation as a top bar (like a normal website header) rather than a
+# list of tabs in the sidebar. The sidebar keeps the project switcher and
+# account. Drilling from Overview into a region still moves you to the next page.
+st.navigation(pages, position="top").run()
