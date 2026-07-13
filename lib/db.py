@@ -287,7 +287,9 @@ def existing_daily_counts(project_id: str) -> dict:
 
 
 def existing_photo_urls(project_id: str) -> set:
-    return {s.get("photo_url") for s in get_submissions(project_id) if s.get("photo_url")}
+    from lib.safety import is_safe_url
+    return {s.get("photo_url") for s in get_submissions(project_id)
+            if is_safe_url(s.get("photo_url"))}
 
 
 # ---------------------------------------------------------------------------

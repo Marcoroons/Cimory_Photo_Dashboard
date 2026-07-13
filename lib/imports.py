@@ -13,6 +13,7 @@ from dateutil import parser as dateparser
 
 from lib import db
 from lib.flags import gps_distance_km, haversine, DEFAULT_DAILY_LIMIT, DEFAULT_GPS_THRESHOLD_KM
+from lib.safety import is_safe_url
 
 
 # Hard cap on rows accepted from one file. Guards the app and the database
@@ -275,8 +276,11 @@ def build_rows(df: pd.DataFrame, mapping: dict, project_id: str, config: dict,
             ref_coord, gps_threshold,
         )
 
+        # Duplicate detection applies only to real photo links, so blank or
+        # missing photos are never mistaken for duplicates (they are "Not
+        # Uploaded" instead).
         is_dup = False
-        if url:
+        if is_safe_url(url):
             if url in existing_urls or url in seen_urls:
                 is_dup = True
             else:
