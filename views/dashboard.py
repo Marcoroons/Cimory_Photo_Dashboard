@@ -20,10 +20,28 @@ can_edit = role in ("owner", "admin", "editor")
 st.title("Review Foto per MCM")
 st.caption(f"Project: {project['name']}")
 
-submissions = db.get_submissions(project_id)
-reviews = db.get_reviews(project_id)
-locks = db.get_review_locks(project_id)
-profiles = db.get_profiles_map()
+# Loading feedback while the (cached) reads run. On a cache hit this flashes by,
+# on the first load per project it shows the spinner. Images themselves load in
+# the browser with a placeholder shimmer, so nothing blocks the server.
+with st.spinner("Loading photos…"):
+    submissions = db.get_submissions(project_id)
+    reviews = db.get_reviews(project_id)
+    locks = db.get_review_locks(project_id)
+    profiles = db.get_profiles_map()
+
+# Placeholder shimmer shown in each photo slot until the browser paints the
+# image. Injected once. rgba keeps it subtle in both light and dark themes.
+st.markdown(
+    """<style>
+    img.review-thumb { background: rgba(128,128,128,0.12); min-height: 110px;
+        background-image: linear-gradient(100deg, rgba(128,128,128,0) 30%,
+        rgba(200,200,200,0.25) 50%, rgba(128,128,128,0) 70%);
+        background-size: 200% 100%; animation: thumbshimmer 1.3s ease-in-out infinite; }
+    @keyframes thumbshimmer { 0% { background-position: 150% 0; }
+        100% { background-position: -150% 0; } }
+    </style>""",
+    unsafe_allow_html=True,
+)
 
 if not submissions:
     st.info("No photos yet. Open the Import page to load your first file.")

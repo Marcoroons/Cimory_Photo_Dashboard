@@ -314,7 +314,8 @@ def photo_card(submission, review, lock, profiles, can_edit, user, project_id):
         # and photos inside a collapsed expander are not fetched at all.
         if is_safe_url(url):
             st.markdown(
-                f'<img src="{escape_html(url)}" loading="lazy" decoding="async" '
+                f'<img class="review-thumb" src="{escape_html(url)}" '
+                f'loading="lazy" decoding="async" '
                 f'style="width:100%;height:auto;border-radius:6px;" '
                 f'alt="submission photo">',
                 unsafe_allow_html=True,
