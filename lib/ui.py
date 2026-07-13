@@ -253,6 +253,9 @@ def _filter_card(col, label, value, key, active):
 # Filter bar
 # ---------------------------------------------------------------------------
 
+RATING_OPTIONS = ["All", "Not rated", "Rated", "Good", "Bad", "To delete"]
+
+
 def filter_bar(regions: list, min_date, max_date) -> dict:
     with st.container(border=True):
         c1, c2, c3 = st.columns([2, 2, 1])
@@ -260,9 +263,12 @@ def filter_bar(regions: list, min_date, max_date) -> dict:
         region = c2.selectbox("Region", options=["All"] + regions, key="flt_region")
         over_only = c3.toggle("Over limit only", key="flt_over")
 
-        c4, c5 = st.columns([3, 1])
+        c4, c5, c6 = st.columns([2, 2, 1])
+        # Rating filter: hide already-rated photos to focus on what is left, or
+        # show only a given rating state.
+        rating = c4.selectbox("Rating status", options=RATING_OPTIONS, key="flt_rating")
         if min_date and max_date:
-            date_range = c4.date_input(
+            date_range = c5.date_input(
                 "Date range",
                 value=(min_date, max_date),
                 min_value=min_date,
@@ -271,8 +277,8 @@ def filter_bar(regions: list, min_date, max_date) -> dict:
             )
         else:
             date_range = None
-        if c5.button("Reset filters", use_container_width=True):
-            for k in ("flt_search", "flt_region", "flt_over", "flt_dates"):
+        if c6.button("Reset filters", use_container_width=True):
+            for k in ("flt_search", "flt_region", "flt_over", "flt_dates", "flt_rating"):
                 st.session_state.pop(k, None)
             st.session_state["card_filter"] = None
             st.rerun()
@@ -282,6 +288,7 @@ def filter_bar(regions: list, min_date, max_date) -> dict:
         "region": None if region == "All" else region,
         "over_only": over_only,
         "date_range": date_range,
+        "rating": None if rating == "All" else rating,
         "card": st.session_state.get("card_filter"),
     }
 
@@ -303,137 +310,126 @@ def _lock_is_fresh(lock, minutes=5):
 def photo_card(submission, review, lock, profiles, can_edit, user, project_id):
     sid = submission["id"]
     flags = submission.get("flags") or {}
+    url = submission.get("photo_url")
+
+    # Compact badges overlaid on the image, top-left, following the second
+    # screenshot. Text is escaped inside badge().
+    badges = []
+    if flags.get("no_gps"):
+        badges.append(badge("No GPS", BADGE_COLORS["no_gps"]))
+    if flags.get("gps_far"):
+        dist = flags.get("gps_distance_km")
+        badges.append(badge(f"GPS>{dist}km" if dist else "GPS far", BADGE_COLORS["gps_far"]))
+    if flags.get("over_limit"):
+        badges.append(badge(">limit/day", BADGE_COLORS["over_limit"]))
+    if flags.get("daily_count"):
+        badges.append(badge(f"input {flags['daily_count']}x", BADGE_COLORS["daily"]))
+    if submission.get("is_duplicate"):
+        badges.append(badge("duplicate", BADGE_COLORS["duplicate"]))
+    if lock and lock.get("locked_by") != user.id and _lock_is_fresh(lock):
+        badges.append(badge(f"reviewing: {profiles.get(lock['locked_by'], 'someone')}",
+                           BADGE_COLORS["lock"]))
 
     with st.container(border=True):
-        url = submission.get("photo_url")
-        # Only render as an image if it is a real http(s) URL. This drops the
-        # "(blank)" placeholders and blocks any javascript: or data: value from
-        # being treated as an image source or a link. loading="lazy" means the
-        # browser only fetches a thumbnail when it scrolls into view, so opening
-        # an MCM with dozens of photos does not fire dozens of requests at once,
-        # and photos inside a collapsed expander are not fetched at all.
         if is_safe_url(url):
+            safe = escape_html(url)
             st.markdown(
-                f'<img class="review-thumb" src="{escape_html(url)}" '
-                f'loading="lazy" decoding="async" '
-                f'style="width:100%;height:auto;border-radius:6px;" '
-                f'alt="submission photo">',
+                f'<div style="position:relative;line-height:0;">'
+                f'<img class="review-thumb" src="{safe}" loading="lazy" decoding="async" '
+                f'style="width:100%;height:150px;object-fit:cover;border-radius:8px;display:block;" '
+                f'alt="submission photo">'
+                f'<div style="position:absolute;top:5px;left:5px;display:flex;'
+                f'flex-direction:column;align-items:flex-start;gap:3px;">{"".join(badges)}</div>'
+                f'<a href="{safe}" target="_blank" rel="noopener" '
+                f'style="position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.6);'
+                f'color:#fff;padding:2px 7px;border-radius:6px;font-size:11px;'
+                f'text-decoration:none;">open ↗</a></div>',
                 unsafe_allow_html=True,
             )
         else:
-            st.caption("No photo")
+            st.markdown(
+                '<div style="height:150px;border-radius:8px;background:rgba(128,128,128,.12);'
+                'display:flex;align-items:center;justify-content:center;color:#888;'
+                'font-size:13px;">No photo</div>',
+                unsafe_allow_html=True,
+            )
 
-        meta_bits = []
-        if submission.get("submission_date"):
-            meta_bits.append(str(submission["submission_date"]))
-        if submission.get("category"):
-            meta_bits.append(submission["category"])
-        st.caption(" · ".join(meta_bits) if meta_bits else " ")
+        d = submission.get("submission_date") or ""
+        cat = submission.get("category") or ""
+        st.caption(f"{d}  \n{cat}" if cat else f"{d}")
 
-        badges = []
-        if flags.get("no_gps"):
-            badges.append(badge("No GPS", BADGE_COLORS["no_gps"]))
-        if flags.get("gps_far"):
-            dist = flags.get("gps_distance_km")
-            label = f"GPS>{dist}km" if dist else "GPS far"
-            badges.append(badge(label, BADGE_COLORS["gps_far"]))
-        if flags.get("over_limit"):
-            badges.append(badge("over daily limit", BADGE_COLORS["over_limit"]))
-        if flags.get("daily_count"):
-            badges.append(badge(f"input {flags['daily_count']}x", BADGE_COLORS["daily"]))
-        if submission.get("is_duplicate"):
-            badges.append(badge("duplicate", BADGE_COLORS["duplicate"]))
-        locked_by_other = lock and lock.get("locked_by") != user.id and _lock_is_fresh(lock)
-        if locked_by_other:
-            who = profiles.get(lock["locked_by"], "someone")
-            badges.append(badge(f"reviewing: {who}", BADGE_COLORS["lock"]))
-        if badges:
-            st.markdown("".join(badges), unsafe_allow_html=True)
-
-        if is_safe_url(url):
-            st.link_button("Open full image", url)
-
-        # Current decision.
         cur_quality = review.get("quality") if review else None
         cur_action = review.get("action") if review else None
-        if review and review.get("reviewer_id"):
-            who = profiles.get(review["reviewer_id"], "someone")
-            st.caption(f"Last review by {who} (v{review.get('version', 1)})")
 
         if not can_edit:
-            state = []
-            if cur_quality:
-                state.append(cur_quality.title())
-            if cur_action:
-                state.append(cur_action.title())
-            st.caption("Decision: " + (", ".join(state) if state else "not assessed"))
+            state = ", ".join(x.title() for x in [cur_quality, cur_action] if x) or "not assessed"
+            st.caption(state)
             return
 
-        quality = st.radio(
-            "Quality",
-            options=["good", "bad"],
-            index=0 if cur_quality == "good" else 1 if cur_quality == "bad" else None,
-            horizontal=True,
-            key=f"q_{sid}",
-        )
-        action = st.radio(
-            "Action",
-            options=["keep", "delete"],
-            index=0 if cur_action == "keep" else 1 if cur_action == "delete" else None,
-            horizontal=True,
-            key=f"a_{sid}",
-        )
-        note = st.text_input("Note", value=(review.get("note") if review else "") or "",
-                             key=f"n_{sid}")
+        # Direct-action buttons. One click writes immediately and the highlight
+        # (primary) shows the current decision.
+        r1 = st.columns(2)
+        if r1[0].button("✓ Good", key=f"g_{sid}", use_container_width=True,
+                        type="primary" if cur_quality == "good" else "secondary"):
+            _apply_review(project_id, sid, user, review, profiles, quality="good")
+        if r1[1].button("✗ Bad", key=f"b_{sid}", use_container_width=True,
+                        type="primary" if cur_quality == "bad" else "secondary"):
+            _apply_review(project_id, sid, user, review, profiles, quality="bad")
+        r2 = st.columns(2)
+        if r2[0].button("Keep", key=f"k_{sid}", use_container_width=True,
+                        type="primary" if cur_action == "keep" else "secondary"):
+            _apply_review(project_id, sid, user, review, profiles, action="keep")
+        if r2[1].button("Delete", key=f"del_{sid}", use_container_width=True,
+                        type="primary" if cur_action == "delete" else "secondary"):
+            _apply_review(project_id, sid, user, review, profiles, action="delete")
 
-        cols = st.columns(2)
-        if cols[0].button("Save review", key=f"save_{sid}", use_container_width=True):
-            _submit_review(project_id, sid, user, quality, action, note, review, profiles)
-        if cols[1].button("Mark reviewing", key=f"lock_{sid}", use_container_width=True,
-                          help="Let teammates see you are on this photo"):
-            try:
-                db.set_lock(project_id, sid, user.id)
-                db.get_review_locks.clear()
-            except Exception:
-                pass
-            st.rerun()
+        with st.popover("Note / more", use_container_width=True):
+            if review and review.get("reviewer_id"):
+                st.caption(f"Last by {profiles.get(review['reviewer_id'], 'someone')} "
+                          f"(v{review.get('version', 1)})")
+            note = st.text_input("Note", value=(review.get("note") if review else "") or "",
+                                 key=f"n_{sid}")
+            if st.button("Save note", key=f"sn_{sid}"):
+                _apply_review(project_id, sid, user, review, profiles, note=note)
+            if st.button("Mark reviewing", key=f"lock_{sid}",
+                        help="Let teammates see you are on this photo"):
+                try:
+                    db.set_lock(project_id, sid, user.id)
+                    db.get_review_locks.clear()
+                except Exception:
+                    pass
+                st.rerun()
 
 
-def _submit_review(project_id, sid, user, quality, action, note, review, profiles):
-    if not quality and not action:
-        st.warning("Choose Good or Bad, or Keep or Delete, before saving.")
-        return
+def _apply_review(project_id, sid, user, review, profiles, quality=None, action=None, note=None):
+    """Merge one change (quality, action or note) with the existing review and
+    save it with optimistic version checking."""
+    cur_q = review.get("quality") if review else None
+    cur_a = review.get("action") if review else None
+    cur_n = review.get("note") if review else None
+    new_q = quality if quality is not None else cur_q
+    new_a = action if action is not None else cur_a
+    new_n = note if note is not None else cur_n
     seen_version = review.get("version") if review else 0
-    ok, conflict = db.save_review(
-        project_id, sid, user.id, quality, action, note, seen_version
-    )
+
+    ok, conflict = db.save_review(project_id, sid, user.id, new_q, new_a, new_n, seen_version)
     if ok:
         db.log_activity(
             project_id, user.id,
-            "marked_delete" if action == "delete" else "reviewed",
+            "marked_delete" if new_a == "delete" else "reviewed",
             submission_id=sid,
-            details={"quality": quality, "action": action},
+            details={"quality": new_q, "action": new_a},
         )
         try:
             db.clear_lock(sid)
         except Exception:
             pass
         db.invalidate()
-        st.toast("Review saved.")
         st.rerun()
     else:
         who = "another reviewer"
         if conflict and conflict.get("reviewer_id"):
             who = profiles.get(conflict["reviewer_id"], who)
-        decided = []
-        if conflict:
-            if conflict.get("quality"):
-                decided.append(conflict["quality"])
-            if conflict.get("action"):
-                decided.append(conflict["action"])
-        st.warning(
-            f"{who} reviewed this first ({', '.join(decided) or 'updated'}). "
-            "Reloading so you do not overwrite their decision."
-        )
+        st.warning(f"{who} updated this photo first. Reloading so nothing is overwritten.")
         db.invalidate()
         st.rerun()

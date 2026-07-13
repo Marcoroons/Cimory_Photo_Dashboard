@@ -33,7 +33,7 @@ with st.spinner("Loading photos…"):
 # image. Injected once. rgba keeps it subtle in both light and dark themes.
 st.markdown(
     """<style>
-    img.review-thumb { background: rgba(128,128,128,0.12); min-height: 110px;
+    img.review-thumb { background: rgba(128,128,128,0.12); min-height: 150px;
         background-image: linear-gradient(100deg, rgba(128,128,128,0) 30%,
         rgba(200,200,200,0.25) 50%, rgba(128,128,128,0) 70%);
         background-size: 200% 100%; animation: thumbshimmer 1.3s ease-in-out infinite; }
@@ -103,6 +103,19 @@ def _passes(s):
         return False
     if flt["card"] == "duplicate" and not s.get("is_duplicate"):
         return False
+    rating = flt.get("rating")
+    if rating:
+        has_quality = bool(r and r.get("quality"))
+        if rating == "Not rated" and has_quality:
+            return False
+        if rating == "Rated" and not has_quality:
+            return False
+        if rating == "Good" and not (r and r.get("quality") == "good"):
+            return False
+        if rating == "Bad" and not (r and r.get("quality") == "bad"):
+            return False
+        if rating == "To delete" and not (r and r.get("action") == "delete"):
+            return False
     if flt["region"] and s.get("region") != flt["region"]:
         return False
     if flt["over_only"] and not (s.get("flags") or {}).get("over_limit"):
@@ -237,7 +250,7 @@ for mcm in page_mcms:
         if len(items) > len(display_items):
             st.caption(f"Showing {len(display_items)} of {len(items)} photos.")
 
-        cols_per_row = 3
+        cols_per_row = 6
         for i in range(0, len(display_items), cols_per_row):
             row_items = display_items[i:i + cols_per_row]
             cols = st.columns(cols_per_row)
