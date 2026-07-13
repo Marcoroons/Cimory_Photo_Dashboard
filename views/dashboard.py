@@ -10,7 +10,7 @@ from itertools import groupby
 import pandas as pd
 import streamlit as st
 
-from lib.ui import page_context, summary_cards, filter_bar, photo_card
+from lib.ui import page_context, summary_cards, filter_bar, photo_card, render_pager
 from lib import db
 from lib.safety import sanitize_csv_value
 
@@ -210,10 +210,21 @@ def _sort_key(s):
 ordered = sorted(filtered, key=_sort_key)
 
 COLS = 4
-pc1, pc2 = st.columns([1, 1])
-per_page = pc1.number_input("Photos per page", min_value=12, max_value=200, value=48, step=12)
+
+# Reset to page 1 whenever the filter set or the page size changes, and never
+# let the page run past the filtered result count. The page number lives in
+# session state and is driven by the rolling pager at the bottom of the page.
+flt_sig = str((flt.get("search"), flt.get("region"), flt.get("over_only"),
+               flt.get("rating"), flt.get("card"), str(flt.get("date_range"))))
+per_page = int(st.session_state.get("dash_per_page", 48))
+layout_sig = f"{flt_sig}|{per_page}"
+if st.session_state.get("dash_layout_sig") != layout_sig:
+    st.session_state["dash_layout_sig"] = layout_sig
+    st.session_state["dash_page"] = 1
+
 total_pages = max(1, (len(ordered) + per_page - 1) // per_page)
-page = pc2.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
+page = min(max(int(st.session_state.get("dash_page", 1)), 1), total_pages)
+st.session_state["dash_page"] = page
 start = (page - 1) * per_page
 page_items = ordered[start:start + per_page]
 st.caption(
@@ -242,3 +253,15 @@ for region, grp in groupby(page_items, key=lambda s: s.get("region") or "(no reg
                     user,
                     project_id,
                 )
+
+# Bottom controls: page size and the rolling page bar, tied to the filtered set.
+st.divider()
+bottom = st.columns([1, 3])
+with bottom[0]:
+    st.number_input("Photos per page", min_value=12, max_value=120, value=48,
+                    step=12, key="dash_per_page")
+    if per_page > 72:
+        st.caption("Higher counts make each click slower to refresh.")
+with bottom[1]:
+    st.caption(f"Page {page} of {total_pages}")
+    render_pager(total_pages, "dash_page")

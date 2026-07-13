@@ -216,6 +216,53 @@ def page_context():
     return ctx
 
 
+def render_pager(total_pages: int, page_key: str = "dash_page"):
+    """A rolling page bar: ‹ 1 … 5 [6] 7 … 120 ›. The current page lives in
+    st.session_state[page_key]; clicking a number sets it and reruns. Nothing
+    here can select a page past total_pages, so it stays tied to the filter."""
+    current = min(max(int(st.session_state.get(page_key, 1)), 1), total_pages)
+    if total_pages <= 1:
+        return
+
+    win = 1
+    nums = {1, total_pages, current}
+    for d in range(-win, win + 1):
+        p = current + d
+        if 1 <= p <= total_pages:
+            nums.add(p)
+    seq = sorted(nums)
+
+    items, prev = [], 0
+    for p in seq:
+        if p - prev > 1:
+            items.append(None)  # ellipsis gap
+        items.append(p)
+        prev = p
+
+    labels = ["‹"] + items + ["›"]
+    cols = st.columns(len(labels))
+    for col, it in zip(cols, labels):
+        if it == "‹":
+            if col.button("‹", key=f"{page_key}_prev", disabled=current == 1,
+                          use_container_width=True):
+                st.session_state[page_key] = current - 1
+                st.rerun()
+        elif it == "›":
+            if col.button("›", key=f"{page_key}_next", disabled=current == total_pages,
+                          use_container_width=True):
+                st.session_state[page_key] = current + 1
+                st.rerun()
+        elif it is None:
+            col.markdown("<div style='text-align:center;color:#888;'>…</div>",
+                        unsafe_allow_html=True)
+        else:
+            if col.button(str(it), key=f"{page_key}_p{it}",
+                          type="primary" if it == current else "secondary",
+                          use_container_width=True):
+                st.session_state[page_key] = it
+                st.rerun()
+
+
 # ---------------------------------------------------------------------------
 # Summary cards that double as filters
 # ---------------------------------------------------------------------------
