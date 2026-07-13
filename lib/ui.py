@@ -308,13 +308,17 @@ def photo_card(submission, review, lock, profiles, can_edit, user, project_id):
         url = submission.get("photo_url")
         # Only render as an image if it is a real http(s) URL. This drops the
         # "(blank)" placeholders and blocks any javascript: or data: value from
-        # being treated as an image source or a link.
+        # being treated as an image source or a link. loading="lazy" means the
+        # browser only fetches a thumbnail when it scrolls into view, so opening
+        # an MCM with dozens of photos does not fire dozens of requests at once,
+        # and photos inside a collapsed expander are not fetched at all.
         if is_safe_url(url):
-            try:
-                st.image(url, use_container_width=True)
-            except Exception:
-                st.caption("Image could not be loaded.")
-                st.write(url)
+            st.markdown(
+                f'<img src="{escape_html(url)}" loading="lazy" decoding="async" '
+                f'style="width:100%;height:auto;border-radius:6px;" '
+                f'alt="submission photo">',
+                unsafe_allow_html=True,
+            )
         else:
             st.caption("No photo")
 

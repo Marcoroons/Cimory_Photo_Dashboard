@@ -169,7 +169,10 @@ if not mcm_ids:
     st.info("No photos match the current filters.")
     st.stop()
 
-per_page = st.number_input("MCMs per page", min_value=1, max_value=50, value=10, step=1)
+# Keep the page light. Fewer MCMs at once means fewer review widgets and image
+# tags in the DOM, which is what keeps a big region from crashing the browser.
+PHOTO_CAP = 12
+per_page = st.number_input("MCMs per page", min_value=1, max_value=50, value=8, step=1)
 total_pages = max(1, (len(mcm_ids) + per_page - 1) // per_page)
 page = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
 start = (page - 1) * per_page
@@ -197,9 +200,18 @@ for mcm in page_mcms:
             ).set_index("date")
             st.bar_chart(day_df, height=160)
 
+        # Only render the first PHOTO_CAP photos of a busy MCM up front, so an
+        # MCM with dozens of photos does not build dozens of review widgets at
+        # once. The rest load on demand.
+        show_key = f"showall_{mcm}"
+        show_all = st.session_state.get(show_key, False)
+        display_items = items if show_all else items[:PHOTO_CAP]
+        if len(items) > len(display_items):
+            st.caption(f"Showing {len(display_items)} of {len(items)} photos.")
+
         cols_per_row = 3
-        for i in range(0, len(items), cols_per_row):
-            row_items = items[i:i + cols_per_row]
+        for i in range(0, len(display_items), cols_per_row):
+            row_items = display_items[i:i + cols_per_row]
             cols = st.columns(cols_per_row)
             for col, sub in zip(cols, row_items):
                 with col:
@@ -212,3 +224,8 @@ for mcm in page_mcms:
                         user,
                         project_id,
                     )
+
+        if not show_all and len(items) > PHOTO_CAP:
+            if st.button(f"Show all {len(items)} photos", key=f"btn_{show_key}"):
+                st.session_state[show_key] = True
+                st.rerun()
