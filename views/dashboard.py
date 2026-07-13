@@ -9,7 +9,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-from lib.ui import page_context, summary_cards, filter_bar, photo_card
+from lib.ui import page_context, summary_cards, filter_bar, photo_card, badge, BADGE_COLORS
 from lib import db
 from lib.safety import sanitize_csv_value
 
@@ -197,6 +197,8 @@ start = (page - 1) * per_page
 page_mcms = mcm_ids[start:start + per_page]
 st.caption(f"Page {page} of {total_pages}. MCMs {start + 1} to {start + len(page_mcms)} of {len(mcm_ids)}.")
 
+daily_limit = int((project.get("config") or {}).get("daily_limit", 2))
+
 for mcm in page_mcms:
     items = by_mcm[mcm]
     dates = [i.get("submission_date") for i in items if i.get("submission_date")]
@@ -206,17 +208,25 @@ for mcm in page_mcms:
         day_counts[d] = day_counts.get(d, 0) + 1
     max_daily = max(day_counts.values()) if day_counts else 0
     first = items[0]
-    header = (
-        f"{mcm}  ·  {first.get('center_name') or ''}  ·  {first.get('region') or ''}"
-        f"  —  {len(items)} photos, {len(distinct_dates)} days, max {max_daily}x/day"
+    date_range = (
+        f"{distinct_dates[0]} → {distinct_dates[-1]}" if distinct_dates else ""
     )
 
-    with st.expander(header, expanded=(len(page_mcms) == 1)):
-        if day_counts:
-            day_df = pd.DataFrame(
-                sorted(day_counts.items()), columns=["date", "photos"]
-            ).set_index("date")
-            st.bar_chart(day_df, height=160)
+    # Each MCM is shown open, no dropdown. A bordered container groups the
+    # header and its photo grid, following the second screenshot as a guide.
+    with st.container(border=True):
+        head = st.columns([5, 1])
+        with head[0]:
+            meta = " · ".join(
+                b for b in [first.get("center_name"), first.get("region")] if b
+            )
+            st.markdown(f"**MCM {mcm}**  {meta}")
+            counts = f"{len(items)} photos · {len(distinct_dates)} days"
+            if date_range:
+                counts += f" · {date_range}"
+            st.caption(counts)
+        color = BADGE_COLORS["over_limit"] if max_daily > daily_limit else BADGE_COLORS["daily"]
+        head[1].markdown(badge(f"max {max_daily}x/day", color), unsafe_allow_html=True)
 
         # Only render the first PHOTO_CAP photos of a busy MCM up front, so an
         # MCM with dozens of photos does not build dozens of review widgets at
