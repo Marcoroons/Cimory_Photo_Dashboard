@@ -30,6 +30,20 @@ with st.spinner("Loading photos…"):
     locks = db.get_review_locks(project_id)
     profiles = db.get_profiles_map()
 
+# Merge this session's just-saved ratings (the optimistic overlay) so a click is
+# reflected without re-fetching. Drop overlay entries the cached read has caught
+# up to, so another reviewer's later change is not masked forever.
+_overlay = st.session_state.get("review_overlay", {})
+if _overlay:
+    _merged = dict(reviews)
+    for _sid, _ov in list(_overlay.items()):
+        _dbr = reviews.get(_sid)
+        if _dbr and _dbr.get("version", 0) >= _ov.get("version", 0):
+            _overlay.pop(_sid, None)
+        else:
+            _merged[_sid] = _ov
+    reviews = _merged
+
 # Placeholder shimmer shown in each photo slot until the browser paints the
 # image. Injected once. rgba keeps it subtle in both light and dark themes.
 st.markdown(

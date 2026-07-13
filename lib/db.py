@@ -117,6 +117,12 @@ def join_default_workspace() -> str:
     return client.rpc("join_default_workspace", {}).execute().data
 
 
+def leave_team(team_id: str) -> None:
+    """Remove the current user from a team. Blocked for the last owner."""
+    client = get_client()
+    client.rpc("leave_team", {"_team": team_id}).execute()
+
+
 def create_project(team_id: str, name: str, config: dict | None = None) -> dict:
     client = get_client()
     payload = {"team_id": team_id, "name": name, "config": config or {}}
@@ -296,7 +302,7 @@ def existing_photo_urls(project_id: str) -> set:
 # Reviews
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def get_reviews(project_id: str) -> dict:
     """submission_id -> review row."""
     client = get_client()

@@ -434,9 +434,30 @@ begin
 end;
 $$;
 
+-- Leave a team. Anyone can leave except the only remaining owner, who would
+-- orphan the team. Security definer so a member can remove their own row.
+create or replace function public.leave_team(_team uuid)
+returns void language plpgsql security definer
+set search_path = public as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+  if exists (
+        select 1 from team_members
+        where team_id = _team and user_id = auth.uid() and role = 'owner')
+     and (select count(*) from team_members
+          where team_id = _team and role = 'owner') <= 1 then
+    raise exception 'The only owner cannot leave. Make someone else an owner first.';
+  end if;
+  delete from team_members where team_id = _team and user_id = auth.uid();
+end;
+$$;
+
 grant execute on function public.create_team(text)             to authenticated;
 grant execute on function public.redeem_invite(text)           to authenticated;
 grant execute on function public.join_default_workspace()      to authenticated;
+grant execute on function public.leave_team(uuid)              to authenticated;
 grant execute on function public.is_team_member(uuid)          to authenticated;
 grant execute on function public.is_team_admin(uuid)           to authenticated;
 grant execute on function public.is_team_editor(uuid)          to authenticated;

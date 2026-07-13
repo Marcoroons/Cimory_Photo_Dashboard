@@ -502,23 +502,29 @@ def _apply_review(project_id, sid, user, review, profiles, quality=None, action=
     seen_version = review.get("version") if review else 0
 
     ok, conflict = db.save_review(project_id, sid, user.id, new_q, new_a, new_n, seen_version)
+    overlay = st.session_state.setdefault("review_overlay", {})
     if ok:
-        db.log_activity(
-            project_id, user.id,
-            "marked_delete" if new_a == "delete" else "reviewed",
-            submission_id=sid,
-            details={"quality": new_q, "action": new_a},
-        )
-        try:
-            db.clear_lock(sid)
-        except Exception:
-            pass
-        db.invalidate_reviews()
+        # Reflect the saved decision locally so the rerun does not have to
+        # re-fetch reviews from the database. The dashboard merges this overlay,
+        # and drops it once the cached read catches up. This is what makes rating
+        # fast: one write, no re-reads.
+        overlay[sid] = {
+            "submission_id": sid, "project_id": project_id,
+            "quality": new_q, "action": new_a, "note": new_n,
+            "reviewer_id": user.id, "version": (seen_version or 0) + 1,
+        }
+        # Only deletions go to the activity feed. Logging every rating was slow
+        # and noisy. The reviewer and version still live on the review itself.
+        if new_a == "delete":
+            db.log_activity(project_id, user.id, "marked_delete", submission_id=sid,
+                            details={"quality": new_q, "action": new_a})
+            db.get_activity.clear()
         st.rerun()
     else:
+        if conflict:
+            overlay[sid] = conflict
         who = "another reviewer"
         if conflict and conflict.get("reviewer_id"):
             who = profiles.get(conflict["reviewer_id"], who)
-        st.warning(f"{who} updated this photo first. Reloading so nothing is overwritten.")
-        db.invalidate_reviews()
+        st.warning(f"{who} updated this photo first. Showing their decision.")
         st.rerun()

@@ -87,3 +87,42 @@ st.caption(
     "Most people just sign up with the shared admin code to join the workspace. "
     "Invite codes are for adding someone to this specific team with a set role."
 )
+
+# ---------------------------------------------------------------------------
+# Team self-service: create your own team, or leave this one.
+# ---------------------------------------------------------------------------
+
+st.divider()
+st.subheader("Create a new team")
+st.caption("You become the owner. A first project is created so it is ready to use.")
+with st.form("create_team_form"):
+    ct_name = st.text_input("Team name")
+    ct_project = st.text_input("First project name", value="Photo Review")
+    ct_submit = st.form_submit_button("Create team")
+if ct_submit:
+    if not ct_name.strip():
+        st.error("Please enter a team name.")
+    else:
+        try:
+            new_team = db.create_team(ct_name.strip())
+            proj = db.create_project(
+                new_team, ct_project.strip() or "Photo Review",
+                {"daily_limit": 2, "gps_threshold_km": 5},
+            )
+            st.session_state["project_id"] = proj["id"]
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Could not create team: {exc}")
+
+st.divider()
+st.subheader("Leave this team")
+st.caption("You lose access to this team's projects. You can rejoin later with an invite code.")
+with st.popover("Leave team"):
+    st.write(f"Leave **{team['name'] if team else team_id}**?")
+    if st.button("Yes, leave this team", type="primary"):
+        try:
+            db.leave_team(team_id)
+            st.session_state.pop("project_id", None)
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Could not leave: {exc}")
