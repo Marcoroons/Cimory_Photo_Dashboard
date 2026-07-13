@@ -336,7 +336,7 @@ def photo_card(submission, review, lock, profiles, can_edit, user, project_id):
             st.markdown(
                 f'<div style="position:relative;line-height:0;">'
                 f'<img class="review-thumb" src="{safe}" loading="lazy" decoding="async" '
-                f'style="width:100%;height:150px;object-fit:cover;border-radius:8px;display:block;" '
+                f'style="width:100%;height:auto;border-radius:8px;display:block;" '
                 f'alt="submission photo">'
                 f'<div style="position:absolute;top:5px;left:5px;display:flex;'
                 f'flex-direction:column;align-items:flex-start;gap:3px;">{"".join(badges)}</div>'

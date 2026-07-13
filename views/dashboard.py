@@ -250,7 +250,7 @@ for mcm in page_mcms:
         if len(items) > len(display_items):
             st.caption(f"Showing {len(display_items)} of {len(items)} photos.")
 
-        cols_per_row = 6
+        cols_per_row = 4
         for i in range(0, len(display_items), cols_per_row):
             row_items = display_items[i:i + cols_per_row]
             cols = st.columns(cols_per_row)
