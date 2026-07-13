@@ -184,6 +184,37 @@ def render_sidebar(user):
             st.session_state["project_id"] = selected
             st.rerun()
 
+        # New project creator, for team owners and admins. Creates the project in
+        # the chosen team and switches to it.
+        admin_teams = [t for t in teams if t.get("_role") in ("owner", "admin")]
+        if admin_teams:
+            with st.popover("＋ New project", use_container_width=True):
+                with st.form("new_project_form"):
+                    new_name = st.text_input("Project name")
+                    if len(admin_teams) > 1:
+                        team_id = st.selectbox(
+                            "Team",
+                            options=[t["id"] for t in admin_teams],
+                            format_func=lambda tid: next(
+                                t["name"] for t in admin_teams if t["id"] == tid),
+                        )
+                    else:
+                        team_id = admin_teams[0]["id"]
+                    created = st.form_submit_button("Create project")
+                if created:
+                    if not new_name.strip():
+                        st.error("Please enter a project name.")
+                    else:
+                        try:
+                            proj = db.create_project(
+                                team_id, new_name.strip(),
+                                {"daily_limit": 2, "gps_threshold_km": 5},
+                            )
+                            st.session_state["project_id"] = proj["id"]
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Could not create project: {exc}")
+
         project = next(p for p in projects if p["id"] == selected)
         role = project_role(user, project, teams)
         st.caption(f"Your role: {role}")
