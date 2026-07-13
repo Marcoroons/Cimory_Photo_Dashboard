@@ -11,7 +11,7 @@ import streamlit as st
 from lib.supa import get_client
 from lib import db
 from lib import notify
-from lib.safety import is_safe_url, escape_html
+from lib.safety import is_safe_url, escape_html, escape_md
 
 
 BADGE_COLORS = {
@@ -354,9 +354,15 @@ def photo_card(submission, review, lock, profiles, can_edit, user, project_id):
                 unsafe_allow_html=True,
             )
 
+        # Centre name inside the cell, since photos are grouped by region now.
+        centre = submission.get("center_name") or ""
+        mcm = submission.get("mcm_id") or ""
         d = submission.get("submission_date") or ""
         cat = submission.get("category") or ""
-        st.caption(f"{d}  \n{cat}" if cat else f"{d}")
+        if centre:
+            st.markdown(f"**{escape_md(centre)}**")
+        meta = " · ".join(x for x in [mcm, d] if x)
+        st.caption(meta + (f"  \n{escape_md(cat)}" if cat else ""))
 
         cur_quality = review.get("quality") if review else None
         cur_action = review.get("action") if review else None

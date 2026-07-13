@@ -5,11 +5,12 @@ per-day counts and quality badges, and the Good, Bad, Keep, Delete controls.
 """
 
 import io
+from itertools import groupby
 
 import pandas as pd
 import streamlit as st
 
-from lib.ui import page_context, summary_cards, filter_bar, photo_card, badge, BADGE_COLORS
+from lib.ui import page_context, summary_cards, filter_bar, photo_card
 from lib import db
 from lib.safety import sanitize_csv_value
 
@@ -187,86 +188,57 @@ st.divider()
 
 
 # ---------------------------------------------------------------------------
-# Group by MCM
+# Group by region, photos as individual cells that wrap and fill the row.
+# Paginating by photo (not by MCM) keeps rows full regardless of how many
+# photos each centre has, so a one-photo centre no longer wastes a whole row.
 # ---------------------------------------------------------------------------
 
-by_mcm: dict = {}
-for s in filtered:
-    by_mcm.setdefault(s.get("mcm_id") or "(no MCM)", []).append(s)
-
-mcm_ids = sorted(by_mcm.keys())
-
-if not mcm_ids:
+if not filtered:
     st.info("No photos match the current filters.")
     st.stop()
 
-# Keep the page light. Fewer MCMs at once means fewer review widgets and image
-# tags in the DOM, which is what keeps a big region from crashing the browser.
-PHOTO_CAP = 12
-per_page = st.number_input("MCMs per page", min_value=1, max_value=50, value=8, step=1)
-total_pages = max(1, (len(mcm_ids) + per_page - 1) // per_page)
-page = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
-start = (page - 1) * per_page
-page_mcms = mcm_ids[start:start + per_page]
-st.caption(f"Page {page} of {total_pages}. MCMs {start + 1} to {start + len(page_mcms)} of {len(mcm_ids)}.")
 
-daily_limit = int((project.get("config") or {}).get("daily_limit", 2))
-
-for mcm in page_mcms:
-    items = by_mcm[mcm]
-    dates = [i.get("submission_date") for i in items if i.get("submission_date")]
-    distinct_dates = sorted(set(dates))
-    day_counts = {}
-    for d in dates:
-        day_counts[d] = day_counts.get(d, 0) + 1
-    max_daily = max(day_counts.values()) if day_counts else 0
-    first = items[0]
-    date_range = (
-        f"{distinct_dates[0]} → {distinct_dates[-1]}" if distinct_dates else ""
+def _sort_key(s):
+    return (
+        s.get("region") or "~",
+        s.get("center_name") or "",
+        s.get("mcm_id") or "",
+        str(s.get("submission_date") or ""),
     )
 
-    # Each MCM is shown open, no dropdown. A bordered container groups the
-    # header and its photo grid, following the second screenshot as a guide.
-    with st.container(border=True):
-        head = st.columns([5, 1])
-        with head[0]:
-            meta = " · ".join(
-                b for b in [first.get("center_name"), first.get("region")] if b
-            )
-            st.markdown(f"**MCM {mcm}**  {meta}")
-            counts = f"{len(items)} photos · {len(distinct_dates)} days"
-            if date_range:
-                counts += f" · {date_range}"
-            st.caption(counts)
-        color = BADGE_COLORS["over_limit"] if max_daily > daily_limit else BADGE_COLORS["daily"]
-        head[1].markdown(badge(f"max {max_daily}x/day", color), unsafe_allow_html=True)
 
-        # Only render the first PHOTO_CAP photos of a busy MCM up front, so an
-        # MCM with dozens of photos does not build dozens of review widgets at
-        # once. The rest load on demand.
-        show_key = f"showall_{mcm}"
-        show_all = st.session_state.get(show_key, False)
-        display_items = items if show_all else items[:PHOTO_CAP]
-        if len(items) > len(display_items):
-            st.caption(f"Showing {len(display_items)} of {len(items)} photos.")
+ordered = sorted(filtered, key=_sort_key)
 
-        cols_per_row = 4
-        for i in range(0, len(display_items), cols_per_row):
-            row_items = display_items[i:i + cols_per_row]
-            cols = st.columns(cols_per_row)
-            for col, sub in zip(cols, row_items):
-                with col:
-                    photo_card(
-                        sub,
-                        reviews.get(sub["id"]),
-                        locks.get(sub["id"]),
-                        profiles,
-                        can_edit,
-                        user,
-                        project_id,
-                    )
+COLS = 4
+pc1, pc2 = st.columns([1, 1])
+per_page = pc1.number_input("Photos per page", min_value=12, max_value=200, value=48, step=12)
+total_pages = max(1, (len(ordered) + per_page - 1) // per_page)
+page = pc2.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
+start = (page - 1) * per_page
+page_items = ordered[start:start + per_page]
+st.caption(
+    f"Page {page} of {total_pages}. Photos {start + 1}-{start + len(page_items)} "
+    f"of {len(ordered)}."
+)
 
-        if not show_all and len(items) > PHOTO_CAP:
-            if st.button(f"Show all {len(items)} photos", key=f"btn_{show_key}"):
-                st.session_state[show_key] = True
-                st.rerun()
+# Render one wrapping grid per region, headed by the region name. groupby works
+# because page_items is a contiguous slice of the region-sorted list.
+for region, grp in groupby(page_items, key=lambda s: s.get("region") or "(no region)"):
+    grp = list(grp)
+    st.markdown(f"### {region}")
+    centres = len({g.get("mcm_id") for g in grp})
+    st.caption(f"{len(grp)} photos · {centres} centres on this page")
+    for i in range(0, len(grp), COLS):
+        row = grp[i:i + COLS]
+        cols = st.columns(COLS)
+        for col, sub in zip(cols, row):
+            with col:
+                photo_card(
+                    sub,
+                    reviews.get(sub["id"]),
+                    locks.get(sub["id"]),
+                    profiles,
+                    can_edit,
+                    user,
+                    project_id,
+                )
