@@ -20,3 +20,7 @@ Thumbs.db
 .streamlit/cache/
 New Rich Text Format.rtf
 ~$*.rtf
+
+# Local Claude Code tooling. The impeccable skill link is regenerated per
+# machine with `npx impeccable link` (the submodule itself is tracked).
+.claude/
