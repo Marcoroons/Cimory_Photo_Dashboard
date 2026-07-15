@@ -8,6 +8,10 @@ per-day counts and quality flags, and mark each photo Good or Bad and Keep or
 Delete. Teams collaborate on the same project with an activity feed, unread
 notifications and edit conflict detection.
 
+**New here? Read [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md)** for a full
+step-by-step to reproduce this from scratch (Claude Code, VS Code and GitHub,
+Supabase, Streamlit) and to adapt it to any purpose.
+
 ## Stack
 
 - **App** — Streamlit multipage app, deployable on Streamlit Community Cloud.
