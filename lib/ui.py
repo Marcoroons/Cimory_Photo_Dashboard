@@ -294,6 +294,33 @@ def render_pager(total_pages: int, page_key: str = "dash_page"):
                 st.rerun()
 
 
+def render_photo_grid(items, reviews, locks, profiles, can_edit, user, project_id,
+                      page_key="grid_page", per_page=24, cols=4):
+    """A paginated grid of photo cells. Shared by the Dashboard and the pop-out
+    panel on the Overview page."""
+    if not items:
+        st.info("No photos here.")
+        return
+    total_pages = max(1, (len(items) + per_page - 1) // per_page)
+    page = min(max(int(st.session_state.get(page_key, 1)), 1), total_pages)
+    st.session_state[page_key] = page
+    start = (page - 1) * per_page
+    page_items = items[start:start + per_page]
+    st.caption(f"Page {page} of {total_pages} · {len(items)} photos")
+
+    for i in range(0, len(page_items), cols):
+        row = page_items[i:i + cols]
+        cs = st.columns(cols)
+        for col, sub in zip(cs, row):
+            with col:
+                photo_card(sub, reviews.get(sub["id"]), locks.get(sub["id"]),
+                           profiles, can_edit, user, project_id)
+
+    if total_pages > 1:
+        st.divider()
+        render_pager(total_pages, page_key)
+
+
 # ---------------------------------------------------------------------------
 # Summary cards that double as filters
 # ---------------------------------------------------------------------------
